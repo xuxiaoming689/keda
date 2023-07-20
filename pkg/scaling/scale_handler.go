@@ -441,6 +441,8 @@ func buildScaler(ctx context.Context, client client.Client, triggerType string, 
 		return scalers.NewPostgreSQLScaler(config)
 	case "predictkube":
 		return scalers.NewPredictKubeScaler(ctx, config)
+	case "prediction":
+		return scalers.NewPredictionScaler(config)
 	case "prometheus":
 		return scalers.NewPrometheusScaler(config)
 	case "pulsar":
