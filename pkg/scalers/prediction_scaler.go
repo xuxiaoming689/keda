@@ -6,11 +6,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"net/http"
-	"strconv"
-	"time"
-
-	libs "github.com/dysnix/predictkube-libs/external/configs"
 	tc "github.com/dysnix/predictkube-libs/external/types_convertation"
 	"github.com/dysnix/predictkube-proto/external/proto/commonproto"
 	"github.com/go-logr/logr"
@@ -19,6 +14,8 @@ import (
 	"k8s.io/api/autoscaling/v2beta2"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/metrics/pkg/apis/external_metrics"
+	"net/http"
+	"strconv"
 
 	kedautil "github.com/kedacore/keda/v2/pkg/util"
 )
@@ -30,59 +27,27 @@ const (
 	invalidMetricsTypeErr = "metric type is invalid"
 )
 
-var (
-	engineHost = "api.prediction.com"
-	enginePort = 443
-
-	defaultSteps = time.Minute * 5
-
-	grpcConnf = &libs.GRPC{
-		Enabled:       true,
-		UseReflection: true,
-		Compression: libs.Compression{
-			Enabled: false,
-		},
-		Conn: &libs.Connection{
-			Host:            engineHost,
-			Port:            uint16(enginePort),
-			ReadBufferSize:  50 << 20,
-			WriteBufferSize: 50 << 20,
-			MaxMessageSize:  50 << 20,
-			Insecure:        false,
-			Timeout:         time.Second * 15,
-		},
-		Keepalive: &libs.Keepalive{
-			Time:    time.Minute * 5,
-			Timeout: time.Minute * 5,
-			EnforcementPolicy: &libs.EnforcementPolicy{
-				MinTime:             time.Minute * 20,
-				PermitWithoutStream: false,
-			},
-		},
-	}
-)
-
 type PredictionScaler struct {
-	metricType       v2beta2.MetricTargetType
-	metadata         *predictionMetadata
-	httpClient 		 *http.Client
-	logger           logr.Logger
+	metricType v2beta2.MetricTargetType
+	metadata   *predictionMetadata
+	httpClient *http.Client
+	logger     logr.Logger
 }
 
 type predictionMetadata struct {
-	predictionWindowSeconds     int64
-	triggerMode  string
-	prometheusAddress   string
-	predictAddress string
-	query               string
-	threshold           float64
-	activationThreshold float64
-	scalerIndex         int
+	predictionWindowSeconds int64
+	triggerMode             string
+	prometheusAddress       string
+	predictAddress          string
+	query                   string
+	threshold               float64
+	activationThreshold     float64
+	scalerIndex             int
 }
 
 type predictResponse struct {
-	data     []float64
-	success  int64
+	Data    []float64 `json:"data"`
+	Success int64     `json:"success"`
 }
 
 // NewPredictionScaler creates a new Prediction scaler
@@ -177,9 +142,9 @@ func (s *PredictionScaler) doPredictRequest(ctx context.Context) (float64, error
 }
 
 func (s *PredictionScaler) doQuery(ctx context.Context) (float64, error) {
-	var queuePredicted []float64
 	url := fmt.Sprintf("%s/predict", s.metadata.predictAddress)
-	var requestJSON = []byte(`{"query": "`+s.metadata.query+`", "prometheusAddress": "`+s.metadata.prometheusAddress+`", "predictionWindowSeconds": "`+ strconv.FormatInt(s.metadata.predictionWindowSeconds, 10) +`"}`)
+	var requestJSON = []byte(`{"query": "` + s.metadata.query + `", "prometheusAddress": "` + s.metadata.prometheusAddress + `", "predictionWindowSeconds": "` + strconv.FormatInt(s.metadata.predictionWindowSeconds, 10) + `"}`)
+	s.logger.Info("Start to predict, %s", string(requestJSON))
 	request, err := http.NewRequestWithContext(ctx, "POST", url, bytes.NewBuffer(requestJSON))
 
 	if err != nil {
@@ -192,21 +157,28 @@ func (s *PredictionScaler) doQuery(ctx context.Context) (float64, error) {
 	}
 
 	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		s.logger.Info("The response of predict url failed, status code %d, %v", resp.StatusCode, err)
+		fmt.Printf("请求失败,状态码:%d", resp.StatusCode)
+		return -1, err
+	}
 	var predictResp predictResponse
 	if err := json.NewDecoder(resp.Body).Decode(&predictResp); err != nil {
 		return -1, err
 	}
-	if resp.StatusCode == 200 && predictResp.success == 0 {
-		queuePredicted = predictResp.data
-	} else {
-		return -1, fmt.Errorf("predict response error code : %d %d", resp.StatusCode, predictResp.success)
+	if predictResp.Success != 0 {
+		// 服务端处理失败
+		fmt.Printf("服务端处理失败,code:%d", predictResp.Success)
 	}
-
-	max := queuePredicted[0]
-	for _, num := range queuePredicted {
-		if num > max {
-			max = num
+	var max float64
+	if len(predictResp.Data) > 0 {
+		max = predictResp.Data[0]
+		for _, num := range predictResp.Data {
+			if num > max {
+				max = num
+			}
 		}
+		fmt.Printf("The max predict value:%f", max)
 	}
 	return max, nil
 }
