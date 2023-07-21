@@ -144,7 +144,7 @@ func (s *PredictionScaler) doPredictRequest(ctx context.Context) (float64, error
 func (s *PredictionScaler) doQuery(ctx context.Context) (float64, error) {
 	url := fmt.Sprintf("%s/predict", s.metadata.predictAddress)
 	var requestJSON = []byte(`{"query": "` + s.metadata.query + `", "prometheusAddress": "` + s.metadata.prometheusAddress + `", "predictionWindowSeconds": "` + strconv.FormatInt(s.metadata.predictionWindowSeconds, 10) + `"}`)
-	s.logger.Info("Start to predict, %s", string(requestJSON))
+	s.logger.Info(fmt.Sprintf("Start to predict, %s", s.metadata.query))
 	request, err := http.NewRequestWithContext(ctx, "POST", url, bytes.NewBuffer(requestJSON))
 
 	if err != nil {
@@ -158,8 +158,7 @@ func (s *PredictionScaler) doQuery(ctx context.Context) (float64, error) {
 
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
-		s.logger.Info("The response of predict url failed, status code %d, %v", resp.StatusCode, err)
-		fmt.Printf("请求失败,状态码:%d", resp.StatusCode)
+		s.logger.Info(fmt.Sprintf("The response of predict url failed, status code %d, %v", resp.StatusCode, err))
 		return -1, err
 	}
 	var predictResp predictResponse
@@ -168,7 +167,7 @@ func (s *PredictionScaler) doQuery(ctx context.Context) (float64, error) {
 	}
 	if predictResp.Success != 0 {
 		// 服务端处理失败
-		fmt.Printf("服务端处理失败,code:%d", predictResp.Success)
+		s.logger.Info(fmt.Sprintf("get predict response error ,code:%d", predictResp.Success))
 	}
 	var max float64
 	if len(predictResp.Data) > 0 {
@@ -178,7 +177,7 @@ func (s *PredictionScaler) doQuery(ctx context.Context) (float64, error) {
 				max = num
 			}
 		}
-		fmt.Printf("The max predict value:%f", max)
+		s.logger.Info(fmt.Sprintf("The max predict value:%f", max))
 	}
 	return max, nil
 }
