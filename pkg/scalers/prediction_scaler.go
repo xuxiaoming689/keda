@@ -331,33 +331,3 @@ func parsePredictionMetadata(config *ScalerConfig) (result *predictionMetadata, 
 
 	return &meta, nil
 }
-
-//func (s *PredictionScaler) ping(ctx context.Context) (err error) {
-//	_, err = s.api.Runtimeinfo(ctx)
-//	return err
-//}
-
-// initPredictionPrometheusConn init prometheus client and setup connection to API
-//func (s *PredictionScaler) initPredictionPrometheusConn(ctx context.Context) (err error) {
-//	var roundTripper http.RoundTripper
-//	// create http.RoundTripper with auth settings from ScalerConfig
-//	if roundTripper, err = authentication.CreateHTTPRoundTripper(
-//		authentication.FastHTTP,
-//		s.metadata.prometheusAuth,
-//	); err != nil {
-//		s.logger.V(1).Error(err, "init Prometheus client http transport")
-//		return err
-//	}
-//
-//	if s.prometheusClient, err = api.NewClient(api.Config{
-//		Address:      s.metadata.prometheusAddress,
-//		RoundTripper: roundTripper,
-//	}); err != nil {
-//		s.logger.V(1).Error(err, "init Prometheus client")
-//		return err
-//	}
-//
-//	s.api = v1.NewAPI(s.prometheusClient)
-//
-//	return s.ping(ctx)
-//}
