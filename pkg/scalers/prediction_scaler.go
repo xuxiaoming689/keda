@@ -16,6 +16,7 @@ import (
 	"k8s.io/metrics/pkg/apis/external_metrics"
 	"net/http"
 	"strconv"
+	"time"
 
 	kedautil "github.com/kedacore/keda/v2/pkg/util"
 )
@@ -72,7 +73,9 @@ func NewPredictionScaler(config *ScalerConfig) (*PredictionScaler, error) {
 
 	s.metadata = meta
 
-	httpClient := kedautil.CreateHTTPClient(config.GlobalHTTPTimeout, false)
+	//httpClient := kedautil.CreateHTTPClient(config.GlobalHTTPTimeout, false)
+	// 10min for http client timeout
+	httpClient := kedautil.CreateHTTPClient(600 * 1000 * time.Millisecond, false)
 	s.httpClient = httpClient
 
 	return s, nil
