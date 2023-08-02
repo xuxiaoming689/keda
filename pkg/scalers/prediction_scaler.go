@@ -16,6 +16,7 @@ import (
 	"k8s.io/metrics/pkg/apis/external_metrics"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	kedautil "github.com/kedacore/keda/v2/pkg/util"
@@ -146,7 +147,9 @@ func (s *PredictionScaler) doPredictRequest(ctx context.Context) (float64, error
 
 func (s *PredictionScaler) doQuery(ctx context.Context) (float64, error) {
 	url := fmt.Sprintf("%s/predict", s.metadata.predictAddress)
-	var requestJSON = []byte(`{"query": "` + s.metadata.query + `", "prometheusAddress": "` + s.metadata.prometheusAddress + `", "predictionWindowSeconds": "` + strconv.FormatInt(s.metadata.predictionWindowSeconds, 10) + `"}`)
+	query := s.metadata.query
+	newQuery := strings.Replace(query, "\"", "%s", -1)
+	var requestJSON = []byte(`{"query": "` + newQuery + `", "prometheusAddress": "` + s.metadata.prometheusAddress + `", "predictionWindowSeconds": "` + strconv.FormatInt(s.metadata.predictionWindowSeconds, 10) + `"}`)
 	s.logger.Info(fmt.Sprintf("Start to predict, %s", s.metadata.query))
 	request, err := http.NewRequestWithContext(ctx, "POST", url, bytes.NewBuffer(requestJSON))
 
