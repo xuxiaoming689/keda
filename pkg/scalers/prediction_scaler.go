@@ -84,12 +84,13 @@ func NewPredictionScaler(config *ScalerConfig) (*PredictionScaler, error) {
 
 // IsActive returns true if we are able to get metrics from Prediction
 func (s *PredictionScaler) IsActive(ctx context.Context) (bool, error) {
+	print("start to trigger isActive")
 	results, err := s.doQuery(ctx)
 	if err != nil {
 		return false, err
 	}
 
-	if s.metadata.triggerMode == "Preview" {
+	if s.metadata.triggerMode == "Preview" || results < 0 {
 		return false, nil
 	}
 
@@ -102,6 +103,7 @@ func (s *PredictionScaler) Close(_ context.Context) error {
 
 func (s *PredictionScaler) GetMetricSpecForScaling(context.Context) []v2beta2.MetricSpec {
 	metricName := kedautil.NormalizeString(fmt.Sprintf("prediction-%s", predictionMetricPrefix))
+	s.logger.V(0).Info("GetMetricSpecForScaling the metricName %s", metricName)
 	externalMetric := &v2beta2.ExternalMetricSource{
 		Metric: v2beta2.MetricIdentifier{
 			Name: GenerateMetricNameWithIndex(s.metadata.scalerIndex, metricName),
@@ -124,11 +126,11 @@ func (s *PredictionScaler) GetMetrics(ctx context.Context, metricName string, _ 
 
 	if value == -1 {
 		err = errors.New("empty response after predict request")
-		s.logger.Error(err, "")
+		s.logger.V(0).Error(err, "")
 		return nil, err
 	}
 
-	s.logger.V(1).Info(fmt.Sprintf("predict value is: %f", value))
+	s.logger.V(0).Info(fmt.Sprintf("predict value is: %f", value))
 
 	metric := GenerateMetricInMili(metricName, value)
 
@@ -136,11 +138,12 @@ func (s *PredictionScaler) GetMetrics(ctx context.Context, metricName string, _ 
 }
 
 func (s *PredictionScaler) doPredictRequest(ctx context.Context) (float64, error) {
+	s.logger.V(0).Info("doPredictRequest ----> start")
 	results, err := s.doQuery(ctx)
 	if err != nil {
 		return 0, err
 	}
-
+	s.logger.V(0).Info("doPredictRequest ----> end")
 	return results, nil
 
 }
@@ -150,7 +153,7 @@ func (s *PredictionScaler) doQuery(ctx context.Context) (float64, error) {
 	query := s.metadata.query
 	newQuery := strings.Replace(query, "\"", "%s", -1)
 	var requestJSON = []byte(`{"query": "` + newQuery + `", "prometheusAddress": "` + s.metadata.prometheusAddress + `", "predictionWindowSeconds": "` + strconv.FormatInt(s.metadata.predictionWindowSeconds, 10) + `"}`)
-	s.logger.Info(fmt.Sprintf("Start to predict, %s", s.metadata.query))
+	s.logger.V(0).Info(fmt.Sprintf("Start to predict, %s", s.metadata.query))
 	request, err := http.NewRequestWithContext(ctx, "POST", url, bytes.NewBuffer(requestJSON))
 
 	if err != nil {
@@ -164,7 +167,7 @@ func (s *PredictionScaler) doQuery(ctx context.Context) (float64, error) {
 
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
-		s.logger.Info(fmt.Sprintf("The response of predict url failed, status code %d, %v", resp.StatusCode, err))
+		s.logger.V(0).Info(fmt.Sprintf("The response of predict url failed, status code %d, %v", resp.StatusCode, err))
 		return -1, err
 	}
 	var predictResp predictResponse
@@ -173,7 +176,7 @@ func (s *PredictionScaler) doQuery(ctx context.Context) (float64, error) {
 	}
 	if predictResp.Success != 0 {
 		// 服务端处理失败
-		s.logger.Info(fmt.Sprintf("get predict response error ,code:%d", predictResp.Success))
+		s.logger.V(0).Info(fmt.Sprintf("get predict response error ,code:%d", predictResp.Success))
 	}
 	var max float64
 	if len(predictResp.Data) > 0 {
@@ -183,7 +186,7 @@ func (s *PredictionScaler) doQuery(ctx context.Context) (float64, error) {
 				max = num
 			}
 		}
-		s.logger.Info(fmt.Sprintf("The max predict value:%f", max))
+		s.logger.V(0).Info(fmt.Sprintf("The max predict value:%f", max))
 	}
 	return max, nil
 }
