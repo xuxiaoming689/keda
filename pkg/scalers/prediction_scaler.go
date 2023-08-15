@@ -103,7 +103,7 @@ func (s *PredictionScaler) Close(_ context.Context) error {
 
 func (s *PredictionScaler) GetMetricSpecForScaling(context.Context) []v2beta2.MetricSpec {
 	metricName := kedautil.NormalizeString(fmt.Sprintf("prediction-%s", predictionMetricPrefix))
-	s.logger.V(0).Info("GetMetricSpecForScaling the metricName %s", metricName)
+	s.logger.V(0).Info("GetMetricSpecForScaling the metricName GetMetricSpecForScaling")
 	externalMetric := &v2beta2.ExternalMetricSource{
 		Metric: v2beta2.MetricIdentifier{
 			Name: GenerateMetricNameWithIndex(s.metadata.scalerIndex, metricName),
