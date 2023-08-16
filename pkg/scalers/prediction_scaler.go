@@ -6,11 +6,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	tc "github.com/dysnix/predictkube-libs/external/types_convertation"
-	"github.com/dysnix/predictkube-proto/external/proto/commonproto"
 	"github.com/go-logr/logr"
 	"github.com/go-playground/validator/v10"
-	"github.com/prometheus/common/model"
 	"k8s.io/api/autoscaling/v2beta2"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/metrics/pkg/apis/external_metrics"
@@ -60,6 +57,7 @@ func NewPredictionScaler(config *ScalerConfig) (*PredictionScaler, error) {
 	s.logger = logger
 
 	metricType, err := GetMetricTargetType(config)
+	logger.Info(fmt.Sprintf("metric Type %v", metricType))
 	if err != nil {
 		logger.Error(err, "error getting scaler metric type")
 		return nil, fmt.Errorf("error getting scaler metric type: %s", err)
@@ -149,6 +147,7 @@ func (s *PredictionScaler) doPredictRequest(ctx context.Context) (float64, error
 }
 
 func (s *PredictionScaler) doQuery(ctx context.Context) (float64, error) {
+	print("start to do query, xxxxxxxxxxxxx")
 	url := fmt.Sprintf("%s/predict", s.metadata.predictAddress)
 	query := s.metadata.query
 	newQuery := strings.Replace(query, "\"", "%s", -1)
@@ -160,6 +159,8 @@ func (s *PredictionScaler) doQuery(ctx context.Context) (float64, error) {
 		return -1, err
 	}
 	request.Header.Set("Content-Type", "application/json")
+	s.logger.Info("do request")
+	print("do request")
 	resp, err := s.httpClient.Do(request)
 	if err != nil {
 		return -1, err
@@ -189,80 +190,6 @@ func (s *PredictionScaler) doQuery(ctx context.Context) (float64, error) {
 		s.logger.V(0).Info(fmt.Sprintf("The max predict value:%f", max))
 	}
 	return max, nil
-}
-
-// parsePrometheusResult parsing response from prometheus server.
-func (s *PredictionScaler) parsePrometheusResult(result model.Value) (out []*commonproto.Item, err error) {
-	metricName := GenerateMetricNameWithIndex(s.metadata.scalerIndex, kedautil.NormalizeString(fmt.Sprintf("prediction-%s", predictionMetricPrefix)))
-	switch result.Type() {
-	case model.ValVector:
-		if res, ok := result.(model.Vector); ok {
-			for _, val := range res {
-				t, err := tc.AdaptTimeToPbTimestamp(tc.TimeToTimePtr(val.Timestamp.Time()))
-				if err != nil {
-					return nil, err
-				}
-
-				out = append(out, &commonproto.Item{
-					Timestamp:  t,
-					Value:      float64(val.Value),
-					MetricName: metricName,
-				})
-			}
-		}
-	case model.ValMatrix:
-		if res, ok := result.(model.Matrix); ok {
-			for _, val := range res {
-				for _, v := range val.Values {
-					t, err := tc.AdaptTimeToPbTimestamp(tc.TimeToTimePtr(v.Timestamp.Time()))
-					if err != nil {
-						return nil, err
-					}
-
-					out = append(out, &commonproto.Item{
-						Timestamp:  t,
-						Value:      float64(v.Value),
-						MetricName: metricName,
-					})
-				}
-			}
-		}
-	case model.ValScalar:
-		if res, ok := result.(*model.Scalar); ok {
-			t, err := tc.AdaptTimeToPbTimestamp(tc.TimeToTimePtr(res.Timestamp.Time()))
-			if err != nil {
-				return nil, err
-			}
-
-			out = append(out, &commonproto.Item{
-				Timestamp:  t,
-				Value:      float64(res.Value),
-				MetricName: metricName,
-			})
-		}
-	case model.ValString:
-		if res, ok := result.(*model.String); ok {
-			t, err := tc.AdaptTimeToPbTimestamp(tc.TimeToTimePtr(res.Timestamp.Time()))
-			if err != nil {
-				return nil, err
-			}
-
-			s, err := strconv.ParseFloat(res.Value, 64)
-			if err != nil {
-				return nil, err
-			}
-
-			out = append(out, &commonproto.Item{
-				Timestamp:  t,
-				Value:      s,
-				MetricName: metricName,
-			})
-		}
-	default:
-		return nil, errors.New(invalidMetricsTypeErr)
-	}
-
-	return out, nil
 }
 
 func parsePredictionMetadata(config *ScalerConfig) (result *predictionMetadata, err error) {
