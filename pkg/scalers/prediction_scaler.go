@@ -82,7 +82,6 @@ func NewPredictionScaler(config *ScalerConfig) (*PredictionScaler, error) {
 
 // IsActive returns true if we are able to get metrics from Prediction
 func (s *PredictionScaler) IsActive(ctx context.Context) (bool, error) {
-	print("start to trigger isActive")
 	results, err := s.doQuery(ctx)
 	if err != nil {
 		return false, err
@@ -101,7 +100,6 @@ func (s *PredictionScaler) Close(_ context.Context) error {
 
 func (s *PredictionScaler) GetMetricSpecForScaling(context.Context) []v2beta2.MetricSpec {
 	metricName := kedautil.NormalizeString(fmt.Sprintf("prediction-%s", predictionMetricPrefix))
-	s.logger.V(0).Info("GetMetricSpecForScaling the metricName GetMetricSpecForScaling")
 	externalMetric := &v2beta2.ExternalMetricSource{
 		Metric: v2beta2.MetricIdentifier{
 			Name: GenerateMetricNameWithIndex(s.metadata.scalerIndex, metricName),
@@ -136,18 +134,15 @@ func (s *PredictionScaler) GetMetrics(ctx context.Context, metricName string, _ 
 }
 
 func (s *PredictionScaler) doPredictRequest(ctx context.Context) (float64, error) {
-	s.logger.V(0).Info("doPredictRequest ----> start")
 	results, err := s.doQuery(ctx)
 	if err != nil {
 		return 0, err
 	}
-	s.logger.V(0).Info("doPredictRequest ----> end")
 	return results, nil
 
 }
 
 func (s *PredictionScaler) doQuery(ctx context.Context) (float64, error) {
-	print("start to do query, xxxxxxxxxxxxx")
 	url := fmt.Sprintf("%s/predict", s.metadata.predictAddress)
 	query := s.metadata.query
 	newQuery := strings.Replace(query, "\"", "%s", -1)
